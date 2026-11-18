@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<title>Vibe Learning</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* 首页：开新项目的输入框，下面是学过的项目。颜色、字体和学习页一样 */
+:root {
+  color-scheme: light dark;
+  --paper: #F2F4F7;
+  --sheet: #FFFFFF;
+  --ink: #16202B;
+  --ink-2: #465363;
+  --ink-3: #7A8491;
+  --rule: #DCE1E7;
+  --accent: #2E44C6;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E8EBFB;
+  --marker: #FFE07A;
+  --marker-ink: #352A00;
+  --sel: rgba(46, 68, 198, .18);
+  --ok: #1C7A51;
+  --ok-soft: #DDF1E6;
+  --code-bg: #EDF0F4;
+  --r-contains: #2E44C6;
+  --r-isa: #6B4FBB;
+  --r-needs: #0F7B8A;
+  --r-causes: #B4590A;
+  --r-contrast: #B3261E;
+  --r-extends: #1C7A51;
+  --r-example: #7A8491;
+  --shadow: 0 1px 2px rgba(22, 32, 43, .05), 0 8px 28px rgba(22, 32, 43, .07);
+  --f-display: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --f-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0F141A; --sheet: #161C24; --ink: #E3E8EE; --ink-2: #A8B2BE; --ink-3: #737E8A; --rule: #27303B;
+    --accent: #8D9CFF; --accent-ink: #0F141A; --accent-soft: #222A4D;
+    --marker: #D8B43F; --marker-ink: #171200; --sel: rgba(141, 156, 255, .32);
+    --ok: #5BC693; --ok-soft: #163126;
+    --code-bg: #1C242E;
+    --r-contains: #8D9CFF; --r-isa: #B9A4F5; --r-needs: #5CC3D1; --r-causes: #F0A35E; --r-contrast: #F2867C; --r-extends: #5BC693; --r-example: #9AA4B0;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .35);
+  }
+}
+html, body { margin: 0; min-height: 100%; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.6 var(--f-body); -webkit-font-smoothing: antialiased; }
+button, textarea { font: inherit; color: inherit; }
+/* 窗口比 1440 宽时整页等比放大，最多 1.3 倍，和学习页一样。放大的区域里 vh 也会放大，除回去 */
+.home { --z: clamp(1, 100vw / 1440px, 1.3); zoom: var(--z); max-width: 820px; margin: 0 auto; padding: calc(14vh / var(--z)) 24px 80px; }
+.home.has-list { padding-top: calc(9vh / var(--z)); }
+h1 { margin: 0 0 22px; text-align: center; font: 600 30px/1.3 var(--f-display); letter-spacing: .02em; }
+/* 输入框：和学习页底下的一样，一个圆角的整体，右下角一个圆按钮 */
+.ask-row { display: flex; gap: 8px; align-items: flex-end; border: 1px solid var(--rule); border-radius: 18px; background: var(--sheet); padding: 8px 8px 8px 18px; box-shadow: var(--shadow); transition: border-color .15s, box-shadow .15s; }
+.ask-row:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--rule)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), var(--shadow); }
+#q { flex: 1; min-width: 0; resize: none; border: 0; background: none; padding: 8px 0; line-height: 1.55; font-size: 17px; max-height: 200px; }
+#q:focus { outline: none; }
+.send { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 50%; padding: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; transition: background .15s, transform .1s; }
+.send:hover { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
+.send:active { transform: scale(.94); }
+#q:placeholder-shown ~ .send, .send:disabled { background: color-mix(in srgb, var(--ink-3) 28%, var(--paper)); color: var(--sheet); cursor: default; transform: none; }
+.status { margin: 10px 4px 0; color: var(--ink-3); font-size: 13px; }
+/* 学过的项目：一张一张的卡片，最近问过的在前 */
+.list-h { margin: 52px 4px 12px; color: var(--ink-3); font-size: 13px; font-weight: 500; }
+.list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px 12px; }
+.proj { display: flex; flex-direction: column; gap: 6px; min-height: 118px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 14px; background: var(--sheet); color: inherit; text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.proj:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--rule)); box-shadow: var(--shadow); transform: translateY(-1px); }
+.proj b { font-size: 15.5px; font-weight: 600; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.proj p { margin: 0; flex: 1; color: var(--ink-2); font-size: 13.5px; line-height: 1.55; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.proj span { color: var(--ink-3); font-size: 12.5px; }
+/* 一门课：几集收成一张卡片，底下露出后面一张卡片的边，像一叠。
+   后面那张比前面窄过圆角（左右各缩 14px），前面的圆角处不会露出它的角；只放一张，两张会在角上出「耳朵」，显得乱（2026-11-08）。
+   它放在卡片底下（z-index -1），所以悬停时卡片不位移（位移会把它罩进卡片里） */
+.proj.stack { position: relative; }
+.proj.stack:hover { transform: none; }
+.proj.stack::before { content: ''; position: absolute; z-index: -1; left: 14px; right: 14px; top: 12px; bottom: -9px; border: 1px solid var(--rule); border-radius: 12px; background: color-mix(in srgb, var(--sheet) 45%, var(--paper)); }
+.proj small { color: var(--ink-3); font-size: 12.5px; font-weight: 500; }
+/* 删除：平时不露，鼠标移到卡片上才出来，在卡片右下角；点一下变成红字「确定删除」，再点才删（2026-11-18） */
+.pw { position: relative; display: grid; }
+.pdel { position: absolute; right: 12px; bottom: 13px; border: 0; background: var(--sheet); padding: 2px 4px; cursor: pointer; color: var(--ink-3); font: inherit; font-size: 12.5px; visibility: hidden; }
+.pdel:hover, .pdel.arm { color: var(--r-contrast); }
+.pdel.arm { font-weight: 600; }
+.pw:hover .pdel, .pdel.arm, .pdel:focus-visible { visibility: visible; }
+.pw:hover .pdel { transform: translateY(-1px); }
+.pdel:disabled { cursor: default; color: var(--ink-3); }
+/* 一门课的页：返回首页、课名，下面按顺序一集一张卡片 */
+.home.course-view { padding-top: calc(7vh / var(--z)); }
+.back { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 14px; text-decoration: none; padding: 4px 8px; margin-left: -8px; border-radius: 8px; }
+.back:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.course-head { margin: 0 0 26px; }
+.course-head h1 { text-align: left; margin: 14px 0 6px; }
+.course-head p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+/* 思维模型：在复述页里收进来的图，所有项目的，最近收的在前。点一张回到它在复述页里的那个回答 */
+.mlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.model { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; border: 1px solid var(--rule); border-radius: 14px; background: var(--sheet); color: inherit; text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.model:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--rule)); box-shadow: var(--shadow); transform: translateY(-1px); }
+.model b { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.model span { color: var(--ink-3); font-size: 12.5px; }
+.dw { min-height: 0; }
+/* 一个项目都还没有时，输入框下面三个能点的问题（新用户不知道从哪问起）；开过一个项目就不出现 */
+.starters { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 2px 0; }
+.starters button { padding: 7px 14px; border: 1px solid var(--rule); border-radius: 999px; background: var(--sheet); color: var(--ink-2); font: inherit; font-size: 14px; cursor: pointer; transition: border-color .15s, color .15s; }
+.starters button:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--rule)); color: var(--ink); }
+.dw svg { display: block; width: 100%; height: auto; max-height: 300px; overflow: visible; fill: var(--ink); font-family: var(--f-body); font-size: 14px; }
+</style>
+
+<main class="home" id="home">
+  <header class="course-head" id="course-head" hidden></header>
+  <h1 id="home-title">Vibe Learning</h1>
+  <form class="ask-row" id="new">
+    <label for="q" hidden>想学什么</label>
+    <textarea id="q" rows="1" placeholder="想学什么？" autofocus></textarea>
+    <button type="submit" class="send" id="go" title="开始（Enter）" aria-label="开始"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </form>
+  <div class="starters" id="starters" hidden></div>
+  <p class="status" id="status" hidden></p>
+  <div id="projects" hidden><p class="list-h">我的学习</p><div class="list" id="list"></div></div>
+  <div id="models" hidden><p class="list-h">思维模型</p><div class="mlist" id="mlist"></div></div>
+</main>
+<script src="/_vendor/purify.min.js"></script>
+<script type="application/json" id="home-data">__HOME_JSON__</script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  let data = { topics: [], models: [], page: 0 };
+  try { data = JSON.parse($('home-data').textContent); } catch { /* 直接双击打开的文件，没有数据 */ }
+
+  // 多久以前
+  function ago(iso) {
+    const t = Date.parse(iso);
+    if (!t) return '';
+    const s = (Date.now() - t) / 1000;
+    if (s < 60) return '刚刚';
+    if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
+    if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
+    if (s < 2 * 86400) return '昨天';
+    const d = new Date(t);
+    return (d.getFullYear() === new Date().getFullYear() ? '' : d.getFullYear() + ' 年 ') + (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
+  }
+  // 一个项目一张卡片，右下角能删（课程那张叠起来的卡片不能删）
+  const card = (t) => '<div class="pw"><a class="proj" href="/' + encodeURIComponent(t.slug) + '/"><b>' + esc(t.title) + '</b><p>' + esc(t.last || t.scope) + '</p><span>' +
+    [t.count ? t.count + ' 个问题' : '', t.preparing ? '正在准备' : '', ago(t.at)].filter(Boolean).join(' · ') + '</span></a>' +
+    '<button type="button" class="pdel' + (delArm === t.slug ? ' arm' : '') + '" data-del="' + esc(t.slug) + '"' + (deleting.has(t.slug) ? ' disabled' : '') + '>' + delLabel(t.slug) + '</button></div>';
+  // 删除要点两下：第一下变成「确定删除」，再点才删；点到别处、过 5 秒就恢复。按项目记着，每隔几秒重画列表也还在
+  let delArm = null;
+  let delTimer = 0;
+  const deleting = new Set();
+  const delLabel = (slug) => (deleting.has(slug) ? '正在删除' : delArm === slug ? '确定删除' : '删除');
+  function arm(slug) {
+    clearTimeout(delTimer);
+    delArm = slug;
+    if (slug) delTimer = setTimeout(() => arm(null), 5000);
+    document.querySelectorAll('#list [data-del]').forEach((b) => { b.classList.toggle('arm', b.dataset.del === delArm); b.textContent = delLabel(b.dataset.del); });
+  }
+  async function del(slug) {
+    arm(null);
+    deleting.add(slug);
+    render();
+    try {
+      const r = await fetch('/api/project?slug=' + encodeURIComponent(slug), { method: 'DELETE' });
+      if (!r.ok && r.status !== 404) throw new Error('delete');
+      data.topics = (data.topics || []).filter((t) => t.slug !== slug);
+      data.models = (data.models || []).filter((m) => m.slug !== slug);
+      say('');
+    } catch {
+      say(location.protocol === 'file:' ? '没连上本机服务。' : '没删掉，再试一次。');
+    }
+    deleting.delete(slug);
+    render();
+    if (!data.course) renderModels();
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]');
+    if (!b) { if (delArm) arm(null); return; }
+    e.preventDefault();
+    if (b.disabled) return;
+    if (delArm === b.dataset.del) del(b.dataset.del); else arm(b.dataset.del);
+  });
+  const courseUrl = (c) => '/_course/' + encodeURIComponent(c.id) + '/';
+  const asked = (ls) => ls.reduce((n, t) => n + (t.count || 0), 0);
+  // 几集加起来多长：「2:02:28」这样的时长相加，按小时说
+  function hours(ls) {
+    const sec = ls.reduce((n, t) => { const p = String(t.course.duration || '').split(':').map(Number); return n + (p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : 0); }, 0);
+    return sec ? '约 ' + Math.round(sec / 3600) + ' 小时' : '';
+  }
+  function render() {
+    const ts = data.topics || [];
+    if (data.course) { renderCourse(ts); return; }
+    // 一门课的几集收成一张叠起来的卡片，放在这门课最近学过的那一集的位置
+    const items = [];
+    const groups = {};
+    for (const t of ts) {
+      if (!t.course) { items.push(t); continue; }
+      const k = t.course.id;
+      if (!groups[k]) { groups[k] = { group: t.course, lessons: [] }; items.push(groups[k]); }
+      groups[k].lessons.push(t);
+    }
+    $('projects').hidden = !ts.length;
+    $('home').classList.toggle('has-list', ts.length > 0);
+    $('starters').hidden = ts.length > 0;
+    $('list').innerHTML = items.map((it) => {
+      if (!it.group) return card(it);
+      const ls = it.lessons;
+      const n = asked(ls);
+      return '<a class="proj stack" href="' + courseUrl(it.group) + '"><b>' + esc(it.group.name) + '</b><p>' + esc(it.group.teacher) + '</p><span>' +
+        [ls.length + ' 集', n ? n + ' 个问题' : '', ago(ls[0].at)].filter(Boolean).join(' · ') + '</span></a>';
+    }).join('');
+  }
+  // 一门课的页：按第几集排，一集一张卡片
+  function renderCourse(ts) {
+    const ls = ts.filter((t) => t.course && t.course.id === data.course).sort((a, b) => (a.course.no || 0) - (b.course.no || 0));
+    const c = ls[0] ? ls[0].course : { name: data.course, teacher: '' };
+    document.title = c.name + ' · Vibe Learning';
+    $('home').classList.add('course-view');
+    $('home-title').hidden = true;
+    $('new').hidden = true;
+    $('models').hidden = true;
+    $('course-head').hidden = false;
+    $('course-head').innerHTML = '<a class="back" href="/"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>我的学习</a>' +
+      '<h1>' + esc(c.name) + '</h1><p>' + [c.teacher, ls.length ? ls.length + ' 集' : '', hours(ls)].filter(Boolean).map(esc).join(' · ') + '</p>';
+    $('projects').hidden = false;
+    $('projects').querySelector('.list-h').hidden = true;
+    $('list').innerHTML = ls.length ? ls.map((t) => '<a class="proj" href="/' + encodeURIComponent(t.slug) + '/"><small>' + esc(['第 ' + t.course.no + ' 集', t.course.duration.replace(/:\d\d$/, '')].filter(Boolean).join(' · ')) + '</small><b>' + esc(t.title.replace(/^[A-Za-z]+\d+\s+/, '')) + '</b><p>' + esc(t.scope) + '</p><span>' +
+      [t.count ? t.count + ' 个问题' : '', ago(t.at)].filter(Boolean).join(' · ') + '</span></a>').join('') : '<p class="status">这门课还没有内容。</p>';
+  }
+  render();
+
+  // 思维模型：图和学习页里一样清理（去掉脚本和外部资源，链接只留图里自己的 #id），再给每张图里的 id 加前缀，几张图都叫 arrow 也不会串
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  if (window.DOMPurify) {
+    DOMPurify.addHook('uponSanitizeAttribute', (node, d) => {
+      if (node.namespaceURI !== SVG_NS) return;
+      const v = String(d.attrValue || '');
+      if ((d.attrName === 'href' || d.attrName === 'xlink:href') && !v.startsWith('#')) d.keepAttr = false;
+      else if (/url\(\s*['"]?(?!#)/i.test(v)) d.keepAttr = false;
+    });
+  }
+  const drawing = (src) => (window.DOMPurify && /^\s*<svg[\s>]/i.test(src || '') ? DOMPurify.sanitize(src, { USE_PROFILES: { svg: true, svgFilters: true }, FORBID_TAGS: ['style', 'image', 'foreignObject', 'a', 'script'] }) : '');
+  function fixIds(root) {
+    root.querySelectorAll('.dw svg').forEach((svg, k) => {
+      svg.removeAttribute('width');
+      svg.removeAttribute('height');
+      const pre = 'm' + k + '-';
+      const map = {};
+      svg.querySelectorAll('[id]').forEach((el) => { map[el.id] = pre + el.id; el.id = pre + el.id; });
+      if (!Object.keys(map).length) return;
+      const fix = (v) => v.replace(/url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/g, (m, id) => (map[id] ? 'url(#' + map[id] + ')' : m)).replace(/^#(.+)$/, (m, id) => (map[id] ? '#' + map[id] : m));
+      svg.querySelectorAll('*').forEach((el) => { for (const a of [...el.attributes]) { const v = fix(a.value); if (v !== a.value) el.setAttribute(a.name, v); } });
+    });
+  }
+  let modelSig = '';
+  function renderModels() {
+    const ms = data.models || [];
+    const sig = ms.map((m) => m.slug + m.qa + m.i + m.at).join();
+    if (sig === modelSig) return;
+    modelSig = sig;
+    $('models').hidden = !ms.length;
+    $('mlist').innerHTML = ms.map((m) => '<a class="model" href="/' + encodeURIComponent(m.slug) + '/#t=' + encodeURIComponent(m.thread) + '&q=' + encodeURIComponent(m.qa) + '&i=' + m.i + '" title="' + esc(m.alt) + '">' +
+      '<div class="dw">' + drawing(m.svg) + '</div><b>' + esc(m.title || '思维模型') + '</b><span>' + [esc(m.project), ago(m.at)].filter(Boolean).join(' · ') + '</span></a>').join('');
+    fixIds($('mlist'));
+  }
+  if (!data.course) renderModels();
+
+  const q = $('q');
+  const fit = () => { q.style.height = 'auto'; q.style.height = Math.min(200, q.scrollHeight + 2) + 'px'; };
+  q.addEventListener('input', fit);
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); start(); }
+  });
+  $('new').addEventListener('submit', (e) => { e.preventDefault(); start(); });
+  // 起步的问题：点一个，填进输入框，直接开始
+  const STARTERS = ['飞机为什么能飞起来？', '大模型是怎么一个字一个字写出回答的？', '复利是怎么让钱越滚越多的？'];
+  $('starters').innerHTML = STARTERS.map((t) => '<button type="button">' + esc(t) + '</button>').join('');
+  $('starters').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || busy) return;
+    q.value = b.textContent;
+    fit();
+    start();
+  });
+  const say = (msg) => { $('status').textContent = msg; $('status').hidden = !msg; };
+
+  // 写了一句话：开一个新项目，跳进去，让它回答这句话
+  let busy = false;
+  async function start() {
+    const text = q.value.trim();
+    if (!text || busy) return;
+    busy = true;
+    $('go').disabled = true;
+    say('');
+    try {
+      const r = await fetch('/api/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: text }) });
+      const j = await r.json();
+      if (!r.ok || !j.slug) throw new Error(j.error || 'new');
+      location.href = '/' + encodeURIComponent(j.slug) + '/?ask=' + encodeURIComponent(text);
+    } catch {
+      say(location.protocol === 'file:' ? '没连上本机服务。' : '没开成，再试一次。');
+      busy = false;
+      $('go').disabled = false;
+    }
+  }
+
+  // 每隔几秒看一眼：新项目起好了标题就换上；页面代码改了，手上没在写就刷新
+  async function poll() {
+    if (document.visibilityState === 'hidden' || location.protocol === 'file:') return;
+    try {
+      const r = await fetch('/api/home', { cache: 'no-store' });
+      const j = await r.json();
+      if (j.page !== data.page && !q.value.trim() && !busy) { location.reload(); return; }
+      data = Object.assign(j, data.course ? { course: data.course } : {});
+      render();
+      if (!data.course) renderModels();
+    } catch { /* 服务暂时连不上，下一轮再试 */ }
+  }
+  setInterval(poll, 4000);
+})();
+</script>
+</html>

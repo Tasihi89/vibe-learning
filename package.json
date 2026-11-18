@@ -1,0 +1,17 @@
+{
+  "name": "vibe-learning",
+  "version": "1.0.0",
+  "description": "Vibe Learning：问一句，AI 边讲边画一张图讲给你听。在你自己的 Mac 上运行，用你自己的 Claude Code。",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/Tasihi89/vibe-learning.git" },
+  "bin": { "vibe-learning": "serve.mjs" },
+  "scripts": {
+    "start": "node serve.mjs",
+    "stop": "node serve.mjs stop",
+    "setup": "node setup.mjs",
+    "check": "node check.mjs"
+  },
+  "engines": { "node": ">=18" }
+}
