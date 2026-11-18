@@ -51,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/Tasihi89/vibe-learning/main/install
 
 ## 要知道的
 
-- **花的是你 Claude Code 的额度**。每个回答都用 Opus 认真想（一般半分钟到一分钟），比平时聊天花得多。
+- **花的是你 Claude Code 的额度**。每个回答都用 Opus 认真想，一个回答一般要一两分钟，比平时聊天花得多。
 - **学习记录**存在 `~/.vibe-learning/`，只在你的电脑上。
 - **AI 能碰什么**：能上网查资料；只读得到每个学习项目自己的文件夹；只能往项目的 `files/` 里存东西；不能运行命令。想让它讲你电脑上的代码、软件，在 Claude Code 里说「让 Vibe Learning 能读我电脑上的文件」（会先跟你说清楚风险）。
 - 目前只支持 Mac，页面和回答都是中文。
