@@ -3,8 +3,8 @@
 // 服务没开就在后台开起来，再在浏览器里打开首页。它自己没有窗口。
 // 用法：node mac/make-app.mjs [放在哪个文件夹]（默认 /Applications，写不进去就放 ~/Applications）
 // 应用里记着 node 和这个项目的位置，还有现在终端里的 PATH（从程序坞、启动台打开的应用拿不到终端的 PATH，
-// 就找不到 claude）。项目搬了家、命令行工具装到了别处，重新运行一次。
-// 上网要走代理、代理写在 ~/.zshrc 这类文件里的：应用每次打开时从登录 shell 里取一次代理设置，交给 claude。
+// 就找不到 codex）。项目搬了家、命令行工具装到了别处，重新运行一次。
+// 上网要走代理、代理写在 ~/.zshrc 这类文件里的：应用每次打开时从登录 shell 里取一次代理设置，交给 codex。
 // 图标的原图是 icon.svg，icon.icns 是用它生成的。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.dirname(HERE);
 const NAME = 'Vibe Learning';
 const ID = 'local.visual-learning';
-const ENV = ['VIBE_LEARNING_HOME', 'VIBE_LEARNING_PORT', 'VISUAL_LEARNING_HOME', 'VISUAL_LEARNING_PORT'];
+// CODEX_HOME：Codex 的设置和登录放在别处的，也带上
+const ENV = ['VIBE_LEARNING_HOME', 'VIBE_LEARNING_PORT', 'VISUAL_LEARNING_HOME', 'VISUAL_LEARNING_PORT', 'VIBE_LEARNING_CODEX', 'CODEX_HOME'];
 
 if (process.platform !== 'darwin') {
   console.error('只能在 Mac 上用。');

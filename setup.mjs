@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 装好以后做的事：install.sh 最后运行它。图标坏了、程序挪了地方，也可以单独运行：node setup.mjs
-//   1. 确认 Claude Code 在、登录了
+//   1. 确认 Codex 命令行在、登录了
 //   2. 在「应用程序」里做「Vibe Learning」图标（mac/make-app.mjs）
 //   3. 桌面上放一个指向它的快捷方式
 //   4. 打开它：服务在后台开起来，浏览器打开首页
@@ -26,17 +26,19 @@ if (process.platform !== 'darwin') {
   process.exit(1);
 }
 
-// 1. Claude Code
-let claude = '';
-try { claude = execFileSync('/bin/sh', ['-c', 'command -v claude'], { encoding: 'utf8' }).trim(); } catch { /* 没有 */ }
-if (!claude) {
-  console.error('找不到 Claude Code（claude 命令）。先装好它并登录，再运行一次。');
+// 1. Codex
+let codex = '';
+try { codex = execFileSync('/bin/sh', ['-c', 'command -v codex'], { encoding: 'utf8' }).trim(); } catch { /* 没有 */ }
+if (!codex) {
+  console.error('找不到 Codex 命令行（codex 命令）。先装好它并登录（npm install -g @openai/codex，然后 codex login），再运行一次。');
   process.exit(1);
 }
 try {
-  const st = JSON.parse(execFileSync(claude, ['auth', 'status'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 20000 }));
-  if (st && st.loggedIn === false) notes.push('Claude Code 还没登录：在终端运行 claude，照提示登录一次，再回来用。');
-} catch { /* 老版本没有这条命令，不管它 */ }
+  // 没登录时它打印 Not logged in、退出码不是 0。用自己配的模型服务（API key 写在环境变量里）的也会这样，所以只提醒，不拦
+  execFileSync(codex, ['login', 'status'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 20000 });
+} catch (e) {
+  if (/not logged in/i.test(String(e.stdout ?? '') + String(e.stderr ?? ''))) notes.push('Codex 好像还没登录：在终端运行 codex login，照提示登录一次，再回来用。（你用的是自己配的模型服务、不用登录的话，不用管这条。）');
+}
 
 // 2. 图标
 fs.mkdirSync(DATA, { recursive: true });
@@ -76,18 +78,18 @@ console.log(`
 
 以后怎么打开
   · 点桌面上的「${NAME}」（「应用程序」里也有，可以拖到程序坞）
-  · 或者在 Claude Code 里打 /vibe-learning
+  · 或者在 Codex 里输入 $vibe-learning，或者说「打开 Vibe Learning」
 
 怎么用
   1. 在首页写一句想学的东西，按回车。AI 一边讲一边画图；有先后的事，图会分几页，点「下一步」往下翻。
-  2. 哪一段没看懂，用鼠标选中它，点「问 Claude」，问答会挂在旁边。
+  2. 哪一段没看懂，用鼠标选中它，点「问 Codex」，问答会挂在旁边。
   3. 想看看自己懂没懂：鼠标移到回答上，点右上角的复述图标，用自己的话讲一遍，AI 会把你讲的画出来，帮你改对。
 
 要知道的
-  · 用的是你自己 Claude Code 的额度。每个回答都用 Opus 认真想，比平时聊天花得多。
+  · 用的是你自己 Codex 的额度和默认模型。每个回答都用高思考力度认真想，比平时聊天花得多。
   · 学习记录只存在这台电脑上（${DATA.replace(os.homedir(), '~')}）。
-  · AI 只读得到每个学习项目自己的文件夹。想让它讲你电脑上的代码、软件，在 Claude Code 里说「让 Vibe Learning 能读我电脑上的文件」。
-  · 更新：在 Claude Code 里说「更新 Vibe Learning」。
+  · 默认提示词要求 AI 只读当前项目和材料里列出的路径。回答时可写入项目的 files/ 和系统临时目录。想调整读取范围，在 Codex 里说「让 Vibe Learning 能读我电脑上的文件」。
+  · 更新：拿到新版的文件夹后，在 Codex 里说「更新 Vibe Learning」。
 ${notes.length ? '\n还要注意\n' + notes.map((n) => '  · ' + n).join('\n') + '\n' : ''}`);
 
 function writable(dir) {

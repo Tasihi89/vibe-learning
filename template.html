@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="stylesheet" href="/_vendor/katex/katex.min.css">
 <style>
-/* 学习页：一问一答。学习者问，Claude 答，每个回答配一张图。别的都不要。 */
+/* 学习页：一问一答。学习者问，AI（Codex）答，每个回答配一张图。别的都不要。 */
 :root {
   color-scheme: light dark;
   --paper: #F2F4F7;
@@ -189,7 +189,7 @@ button.trail-i:hover { color: var(--accent); }
 .send.stop { background: var(--ink); color: var(--sheet); }
 #ask-status { margin-top: 6px; }
 
-/* ---------- 选中一段：问 Claude、标记 ---------- */
+/* ---------- 选中一段：问 Codex、标记 ---------- */
 mark.hl { background: var(--marker); color: var(--marker-ink); border-radius: 2px; cursor: pointer; }
 tspan.hl { fill: var(--r-causes); font-weight: 700; cursor: pointer; }
 tspan.cm { text-decoration: underline; cursor: pointer; }
@@ -317,7 +317,7 @@ tspan.cm.on { fill: var(--accent); }
 .v-bottom { margin: 0; font-size: 14px; color: var(--ink-2); }
 small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; font-weight: 400; }
 
-/* draw：Claude 自己画的图（SVG）。颜色、字体从页面继承，图里写 style="fill:var(--accent)" 这样的颜色变量 */
+/* draw：AI 自己画的图（SVG）。颜色、字体从页面继承，图里写 style="fill:var(--accent)" 这样的颜色变量 */
 .dw svg { display: block; width: 100%; height: auto; margin: 0 auto; overflow: visible; fill: var(--ink); font-family: var(--f-body); font-size: 14px; }
 .card .dw { cursor: zoom-in; }
 
@@ -609,12 +609,13 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
   const KINDS = { draw: '图', steps: '一步步的图', tree: '组成', web: '关系', flow: '流程', compare: '对比', cause: '因果', analogy: '类比', layers: '分层', instance: '实物', timeline: '历史', scale: '尺度', formula: '公式' };
   const REL = { contains: '包含', partOf: '属于', isa: '是一种', kind: '它的一种', needs: '依赖', usedBy: '被依赖', causes: '导致', because: '起因', contrast: '对比', extends: '延伸', example: '例子' };
   const ERR = {
-    no_cli: '这台电脑上找不到 claude 命令。装好 Claude Code 后，重新打开学习页。',
-    service_down: '连不上本机服务，它可能关了。点一下 Vibe Learning 图标，或者在 Claude Code 里打 /vibe-learning，再回来问。',
-    rate_limited: 'Claude 现在太忙，或者你的用量到上限了。过一会儿再试。',
-    session_expired: 'Claude Code 没有登录。在终端运行 claude 登录一次，再回来问。',
+    no_cli: '这台电脑上找不到 codex 命令。装好 Codex 命令行后，在 Codex 里说「打开 Vibe Learning」，再回来问。',
+    service_down: '连不上本机服务，它可能关了。点一下 Vibe Learning 图标，或者在 Codex 里说「打开 Vibe Learning」，再回来问。',
+    rate_limited: 'Codex 现在太忙，或者你的用量到上限了。过一会儿再试。',
+    session_expired: 'Codex 没有登录。在终端运行 codex login 登录一次，再回来问。',
     prompt_too_large: '这次带的材料太长了。换个更具体的问题试试。',
-    network: '连不上 Claude。先看看终端里的 Claude Code 能不能用；上网要开代理的话，打开代理再问一次。',
+    network: '连不上 OpenAI。先看看终端里的 Codex 能不能用；上网要开代理的话，打开代理再问一次。',
+    bad_model: '设置里的模型用不了。在 Codex 里说「Vibe Learning 换个模型」，或者删掉 settings.json 里的 model。',
     upstream_error: '连接中断了。再问一次试试。',
   };
 
@@ -623,7 +624,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
     DOMPurify.addHook('afterSanitizeAttributes', (el) => {
       if (el.tagName === 'A' && /^https?:/i.test(el.getAttribute('href') || '')) { el.setAttribute('target', '_blank'); el.setAttribute('rel', 'noopener'); }
     });
-    // Claude 画的图只能引用图里自己的东西：链接只留 #id，样式里不许 url(外面的地址)
+    // AI 画的图只能引用图里自己的东西：链接只留 #id，样式里不许 url(外面的地址)
     DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
       if (node.namespaceURI !== SVG_NS) return;
       const v = String(data.attrValue || '');
@@ -850,7 +851,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
     return '';
   }
 
-  // ---------- 解析 Claude 的输出：一行一个 JSON ----------
+  // ---------- 解析 AI 的输出：一行一个 JSON ----------
   // objs 是已经写完的对象；tail 是最后一个还没写完的对象从哪开始（没有就是 -1）
   function scan(text) {
     const objs = [];
@@ -990,7 +991,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
   const tagAttr = (t) => (colorOf(t) ? ' data-tag="' + colorOf(t) + '"' : '');
   const cpickHTML = (t, cls) => '<button type="button" class="' + cls + '" data-cpick="' + esc(t) + '"' + tagAttr(t) + ' title="给这一页标颜色" aria-label="给这一页标颜色">' + (cls === 'cpick' ? '颜色' : '') + '</button>';
 
-  // ---------- 给 Claude 的材料 ----------
+  // ---------- 给 AI 的材料 ----------
   function qaGist(qa) {
     const views = arr(qa.blocks).filter((b) => b.t === 'view').map((b) => (b.title ? '「' + b.title + '」' : KINDS[b.kind] || '') + (b.alt ? '：' + b.alt : ''));
     return '问：' + qa.q + '\n答：' + answerText(qa).slice(0, 400) + (views.length ? '\n配的图：' + views.join('、') : '');
@@ -1076,7 +1077,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
   // ---------- 问 ----------
   function ready() {
     if (S.sample === undefined) { toast('正在连接本机服务，稍等一下。'); return false; }
-    if (!S.sample) { toast('现在用不了网页里的 Claude。在终端里对 Claude Code 说「打开学习页」，从它打开的页面来问。'); return false; }
+    if (!S.sample) { toast('现在用不了网页里的 Codex。在 Codex 里说「打开 Vibe Learning」，从它打开的页面来问。'); return false; }
     if (S.pending) { toast('上一个问题还在回答，等它答完。'); return false; }
     return true;
   }
@@ -1157,7 +1158,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
   const ICON_RETELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7.5L7 21v-3.5H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/><path d="M14.9 11.3a2.9 2.9 0 1 1-1-2.4M14.3 7.1l-.4 1.8 1.8.4"/></svg>';
   const iconKeep = (on) => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h10a1 1 0 0 1 1 1V20.5l-6-4-6 4V4.5a1 1 0 0 1 1-1z"/><path class="k-plus" d="' + (on ? 'M9 10.2l2.2 2.2 4-4.2' : 'M12 7v6.5M8.75 10.25h6.5') + '"/></svg>';
   // 给一步步的图记上是哪个回答的第几块：页面重画后还翻在那一页。
-  // class 后面跟什么都认（layer、says……）：以前只认 layer，话画在图里的一步步的图一重画（比如点「问 Claude」）就跳回第一页
+  // class 后面跟什么都认（layer、says……）：以前只认 layer，话画在图里的一步步的图一重画（比如点「问 Codex」）就跳回第一页
   const keySteps = (h, key) => h.replace(/<div class="st(?: [^"]*)?">/, (m) => m.slice(0, -1) + ' data-key="' + esc(key) + '">');
   const keyedBlockHTML = (b, key) => (b && b.t === 'view' && b.kind === 'steps' ? keySteps(blockHTML(b, key), key) : blockHTML(b, key));
   function qaHTML(qa) {
@@ -1721,7 +1722,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
     $('ask-input').disabled = off;
     // 这里只放状态（连接中、连不上、正在回答），不放操作说明
     $('ask-status').textContent = S.sample === undefined ? '正在连接本机服务…'
-      : off ? '没连上本机服务，只能看，不能问。在终端里对 Claude Code 说「打开学习页」。'
+      : off ? '没连上本机服务，只能看，不能问。在 Codex 里说「打开 Vibe Learning」。'
       : busy ? '回答中 · ' + statusText()
       : '';
     $('ask-status').hidden = !$('ask-status').textContent;
@@ -1826,7 +1827,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
   }
   function showBar(info, rect) {
     SB = info;
-    bar.innerHTML = (info.in === 'q' ? '' : '<button type="button" data-sb="note">问 Claude</button>') + (info.mark != null ? '<button type="button" data-sb="unmark">取消标记</button>' : '<button type="button" data-sb="mark">标记</button>');
+    bar.innerHTML = (info.in === 'q' ? '' : '<button type="button" data-sb="note">问 Codex</button>') + (info.mark != null ? '<button type="button" data-sb="unmark">取消标记</button>' : '<button type="button" data-sb="mark">标记</button>');
     bar.hidden = false;
     const w = bar.offsetWidth;
     const h = bar.offsetHeight;
@@ -1841,7 +1842,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
     if (info) showBar(info, info.rect);
     else hideBar();
   }
-  // 选中一段问 Claude：侧栏出一张新备注卡片，在卡片里问
+  // 选中一段问 Codex：侧栏出一张新备注卡片，在卡片里问
   // 选中的范围去掉两头的空白
   function trimRange(full, start, end) {
     let a = Math.min(start, end);
@@ -2220,7 +2221,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
       if (!r.ok) throw fail('unavailable');
       return r.json();
     }
-    // 每两秒问一次服务哪些文件变了，变了的重新取。Claude Code 改了文件，页面也能看到
+    // 每两秒问一次服务哪些文件变了，变了的重新取。Codex 改了文件，页面也能看到
     let revs = first.docs;
     let page = first.page;
     let topicRev = first.topic;
@@ -2256,7 +2257,7 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
       collection: (col) => ({ orderBy: (order) => ({ onSnapshot: (cb) => { const s = { key: col, order, cb, sig: null, seq: 0 }; subs.add(s); fire(s); } }) }),
     };
     const files = { read: (name) => call('api/file?name=' + q(name)) };
-    // 问 Claude：服务转给本机的 claude -p，一行一行流回来
+    // 问 Codex：服务转给本机的 codex app-server，一行一行流回来
     async function sample(turns, opts) {
       opts = opts || {};
       const aborted = () => !!(opts.signal && opts.signal.aborted);
@@ -2297,12 +2298,16 @@ small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5
     }
     return { db, sample, files };
   }
-  // Claude Code 重新生成了学习页：手上没事就直接刷新，有没发出去的字就先提醒
-  // 首页上写的那句话带在地址里（?ask=）：项目还是空的，就直接问它
+  // 学习页的代码改过了：手上没事就直接刷新，有没发出去的字就先提醒
+  // 地址片段里的第一个问题只用一次；旧版链接把 ask 放在查询参数里。
   function askFromHome() {
-    const q = new URLSearchParams(location.search).get('ask');
+    const url = new URL(location.href);
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const q = fragment.get('ask') || url.searchParams.get('ask');
     if (!q) return;
-    try { history.replaceState(history.state, '', location.pathname + location.hash); } catch { /* 本地文件打开时不改地址 */ }
+    if (fragment.has('ask')) { fragment.delete('ask'); url.hash = fragment.toString(); }
+    if (url.searchParams.has('ask')) url.searchParams.delete('ask');
+    try { history.replaceState(history.state, '', url.href); } catch { /* 本地文件打开时不改地址 */ }
     if (!S.qas.length && !S.page && !S.pending) ask(q);
   }
   // 项目本身变了（刚开的项目起好了标题、底稿、可以接着问的问题）：换上新的，不刷新页面

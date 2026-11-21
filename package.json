@@ -1,7 +1,7 @@
 {
   "name": "vibe-learning",
-  "version": "1.0.0",
-  "description": "Vibe Learning：问一句，AI 边讲边画一张图讲给你听。在你自己的 Mac 上运行，用你自己的 Claude Code。",
+  "version": "1.1.0-codex",
+  "description": "Vibe Learning：问一句，AI 边讲边画一张图讲给你听。在你自己的 Mac 上运行，用你自己的 Codex。",
   "type": "module",
   "private": true,
   "license": "MIT",

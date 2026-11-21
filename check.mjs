@@ -43,10 +43,10 @@ const fixture = {
   blocks: [
     { t: 'text', md: '一句话回答，带 **加粗** 和 `代码`。' },
     // 自己画的图：带箭头 marker（id 会被改名）、一段混进来的脚本和外部图片（要被去掉）
-    { t: 'view', kind: 'draw', title: '自己画的图', alt: '两个框，一个箭头', svg: '<svg viewBox="0 0 720 200" width="720" height="200"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs><rect x="20" y="60" width="200" height="80" rx="10" style="fill:var(--accent-soft);stroke:var(--accent)"/><text x="120" y="106" text-anchor="middle" font-size="16">你的电脑</text><line x1="220" y1="100" x2="480" y2="100" style="stroke:var(--accent);stroke-width:2" marker-end="url(#arrow)"/><rect x="480" y="60" width="220" height="80" rx="10" style="fill:var(--sheet);stroke:var(--ink-3)"/><text x="590" y="106" text-anchor="middle" font-size="16">claude.ai</text><script>window.__BAD = 1</script><image href="http://example.com/x.png" x="0" y="0" width="10" height="10"/><rect onclick="window.__BAD = 2" x="0" y="0" width="5" height="5"/></svg>' },
+    { t: 'view', kind: 'draw', title: '自己画的图', alt: '两个框，一个箭头', svg: '<svg viewBox="0 0 720 200" width="720" height="200"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs><rect x="20" y="60" width="200" height="80" rx="10" style="fill:var(--accent-soft);stroke:var(--accent)"/><text x="120" y="106" text-anchor="middle" font-size="16">你的电脑</text><line x1="220" y1="100" x2="480" y2="100" style="stroke:var(--accent);stroke-width:2" marker-end="url(#arrow)"/><rect x="480" y="60" width="220" height="80" rx="10" style="fill:var(--sheet);stroke:var(--ink-3)"/><text x="590" y="106" text-anchor="middle" font-size="16">example.com</text><script>window.__BAD = 1</script><image href="http://example.com/x.png" x="0" y="0" width="10" height="10"/><rect onclick="window.__BAD = 2" x="0" y="0" width="5" height="5"/></svg>' },
     { t: 'view', kind: 'tree', title: '组成', root: { name: '一个很长很长的根节点名字用来测试换行', note: '一句很长的说明文字，看看会不会把框撑破，再长一点再长一点', children: [{ name: '子一', note: '说明', mark: true }, { name: '子二', children: [{ name: '孙一' }, { name: '孙二' }] }] } },
     { t: 'view', kind: 'web', center: { name: '中心概念', note: '说明' }, links: ['contains', 'partOf', 'isa', 'needs', 'causes', 'contrast', 'extends', 'example'].map((rel, i) => ({ name: '相关概念 ' + (i + 1), rel, note: '一句说明' })) },
-    { t: 'view', kind: 'flow', title: '时序图', actors: [{ id: 'a', name: '浏览器' }, { id: 'b', name: '家里的路由器' }, { id: 'c', name: '网站的服务器' }, { id: 'd', name: 'claude.ai' }], steps: [{ title: '交给路由器', body: '目的地不在家里的网络里，浏览器把请求交给路由器', from: 'a', to: 'b' }, { title: '查路由表', body: '按路由表决定下一站交给谁', at: 'b' }, { title: '加密发出', body: '一句比较长的说明文字，用来测试换行会不会把格子撑破，再长一点', from: 'b', to: 'c' }, { title: '再转一站', from: 'c', to: 'd' }, { title: '原路送回', body: '说明', from: 'd', to: 'a' }] },
+    { t: 'view', kind: 'flow', title: '时序图', actors: [{ id: 'a', name: '浏览器' }, { id: 'b', name: '家里的路由器' }, { id: 'c', name: '网站的服务器' }, { id: 'd', name: 'example.com' }], steps: [{ title: '交给路由器', body: '目的地不在家里的网络里，浏览器把请求交给路由器', from: 'a', to: 'b' }, { title: '查路由表', body: '按路由表决定下一站交给谁', at: 'b' }, { title: '加密发出', body: '一句比较长的说明文字，用来测试换行会不会把格子撑破，再长一点', from: 'b', to: 'c' }, { title: '再转一站', from: 'c', to: 'd' }, { title: '原路送回', body: '说明', from: 'd', to: 'a' }] },
     { t: 'view', kind: 'flow', steps: [{ title: '没有角色的第一步', body: '说明' }, { title: '第二步', body: '说明' }] },
     { t: 'view', kind: 'compare', items: [{ name: '方案一' }, { name: '方案二' }, { name: '方案三' }], rows: [{ aspect: '改了什么', values: ['一个网址', '两个端口', '路由表和一块虚拟网卡，很长的一句'] }, { aspect: '谁会听', values: ['浏览器', '大部分 App', '几乎所有程序'] }], bottom: '一句话结论' },
     { t: 'view', kind: 'cause', chain: [{ text: '原因' }, { text: '中间' }, { text: '结果' }], flip: '反过来想：如果没有……' },
@@ -227,7 +227,7 @@ const runner = `<script>
         if (k) st.querySelector('[data-stmove="1"]').click();
         if (said() !== want[k]) out.push({ where: '边讲边画', kind: '第 ' + (k + 1) + ' 页的话不对', detail: '应该' + want[k] + '，实际' + said() });
       }
-      // 停在第 2 页，侧栏卡片里的那张也翻到第 2 页：看重画（标记、点「问 Claude」）后还在不在
+      // 停在第 2 页，侧栏卡片里的那张也翻到第 2 页：看重画（标记、点「问 Codex」）后还在不在
       st.querySelector('[data-stgo="1"]').click();
       const cst = cardSays();
       if (!cst) out.push({ where: '边讲边画', kind: '侧栏卡片里的一步步的图没画出来', detail: '' });
@@ -306,7 +306,7 @@ const runner = `<script>
       const n = sample().querySelectorAll('mark.hl').length;
       bar.querySelector('[data-sb="mark"]').click();
       if (sample().querySelectorAll('mark.hl').length <= n) out.push({ where: '选中', kind: '点「标记」没标上', detail: '' });
-      // 在图里选中一段，问 Claude：侧栏出一张新卡片，带输入框
+      // 在图里选中一段，问 Codex：侧栏出一张新卡片，带输入框
       const el = sample().querySelector('.v-cause .ca-n');
       select(el.firstChild, 0, el.firstChild, el.firstChild.data.length);
     },
@@ -318,9 +318,9 @@ const runner = `<script>
       const bar = document.getElementById('selbar');
       if (bar.hidden) { out.push({ where: '选中', kind: '在图里选中文字后没出工具条', detail: '' }); return; }
       bar.querySelector('[data-sb="note"]').click();
-      saysKept('点「问 Claude」以后');
+      saysKept('点「问 Codex」以后');
       const card = document.querySelector('#rail .card.on');
-      if (!card || !card.querySelector('.card-input') || document.activeElement !== card.querySelector('.card-input')) out.push({ where: '选中', kind: '点「问 Claude」后侧栏没出新备注、或输入框没聚焦', detail: '' });
+      if (!card || !card.querySelector('.card-input') || document.activeElement !== card.querySelector('.card-input')) out.push({ where: '选中', kind: '点「问 Codex」后侧栏没出新备注、或输入框没聚焦', detail: '' });
       if (cardsOverlap()) out.push({ where: '选中', kind: '新备注和别的卡片叠在一起', detail: '' });
       // 单击侧栏的卡片：展开成整页
       const c1 = document.querySelector('#rail .card[data-t="zz-t1"]');
@@ -449,7 +449,7 @@ const runner = `<script>
     () => {
       const bar = document.getElementById('selbar');
       if (bar.hidden) { out.push({ where: '标记', kind: '在问题里选中文字后没出工具条', detail: '' }); return; }
-      if (bar.querySelector('[data-sb="note"]')) out.push({ where: '标记', kind: '问题里的工具条不该有「问 Claude」', detail: '' });
+      if (bar.querySelector('[data-sb="note"]')) out.push({ where: '标记', kind: '问题里的工具条不该有「问 Codex」', detail: '' });
       const n = question().querySelectorAll('mark.hl').length;
       bar.querySelector('[data-sb="mark"]').click();
       if (question().querySelectorAll('mark.hl').length <= n) out.push({ where: '标记', kind: '在问题里点「标记」没标上', detail: '' });

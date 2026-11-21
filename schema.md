@@ -5,7 +5,7 @@
 | 文件 | 谁写 | 内容 |
 |---|---|---|
 | `profile.json` | 学习者（可选） | `{"learner": "学习者是谁、喜欢怎么学"}`，新开的项目都带上这段；没有就用默认的 |
-| `settings.json` | 学习者（可选） | `{"readAnywhere": true}`：页面上的 AI 能读这台电脑上所有的文件。不写的话，只读得到项目自己的文件夹和 `sources` 里写的路径 |
+| `settings.json` | 学习者（可选） | `{"readAnywhere": true}`：不再叮嘱页面上的 AI 只读项目自己的文件夹和 `sources` 里写的路径（Codex 的沙箱本来就不拦读）。`"model"`：换模型（不写就用 Codex 设置里的默认模型）；`"effort"`：思考力度，`minimal`、`low`、`medium`、`high`（默认）、`xhigh` |
 | `server.log` | 服务 | 日志 |
 | `<slug>/topic.json` | 首页开项目时服务写，后台开题再补全 | 项目名、学习者、资料在哪、底稿、起步问题 |
 | `<slug>/data/qa/<id>.json` | 页面写 | 一次问答 |

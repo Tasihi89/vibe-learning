@@ -2,13 +2,15 @@
 // Vibe Learning：在本机打开学习页。一个只给这台电脑用的小服务。
 // 用法：
 //   node serve.mjs [项目]     服务没在跑就先在后台启动，再用浏览器打开首页（写了项目就打开那个项目）
+//   node serve.mjs --ask      从标准输入读问题，开一个项目并打开它的学习页
 //   node serve.mjs stop       关掉服务
 //   node serve.mjs run        在前台运行（看日志、调试用）
 // 每个学习项目在数据目录下的 <项目>/ 里：topic.json 是项目本身，data/qa/ 是问答（一问一个 JSON 文件），
 // files/ 是页面上的 AI 存下的资料。
-// 页面里提问，走这台电脑上 Claude Code 的登录（claude -p），花的是它的额度。
-// 它能上网查；只读得到这个项目的文件夹和 topic.json 里 sources 写的路径（数据目录的 settings.json 里
-// readAnywhere 为 true 时，整台电脑都读得到）；只能往这个项目的 files/ 里写，不能运行命令。
+// 页面里提问，走这台电脑上 Codex 的登录（codex app-server），花的是它的额度。
+// 它能用网页搜索查资料，本地命令没有网络访问权限。回答时沙箱允许写入项目的 files/ 和系统临时目录。
+// 默认提示词要求只读这个项目的文件夹和 sources 写的路径，沙箱没有强制限定这个读取范围
+// （数据目录的 settings.json 里 readAnywhere 为 true 时不再这么要求）。
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,6 +28,7 @@ const BASE = `http://${HOST}:${PORT}`;
 const ALLOWED_HOSTS = [`${HOST}:${PORT}`, `localhost:${PORT}`];
 const LOG_FILE = path.join(ROOT, 'server.log');
 const SELF = fileURLToPath(import.meta.url);
+const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(HERE, 'package.json'), 'utf8')).version || '0'; } catch { return '0'; } })();
 const APP = 'vibe-learning';
 // 旧版本的服务也认，好把它换掉
 const OLD_APPS = ['visual-learning'];
@@ -36,6 +39,7 @@ const COLS = ['qa'];
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const MAX_BODY = 1 << 20;
 const MAX_FILE = 512 * 1024;
+const MAX_QUESTION = 4000;
 // 学习者是谁：数据目录下 profile.json 的 learner；没写就用这个
 const DEFAULT_LEARNER = '没有特别说明。当他从零学起：讲真概念、真术语，每个术语紧跟一句大白话；图上的字写成完整的话，不用暗号式的缩写。';
 
@@ -43,6 +47,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cmd = process.argv[2] ?? '';
 if (cmd === 'run') serve();
 else if (cmd === 'stop') await stop();
+else if (cmd === '--ask') {
+  const question = fs.readFileSync(0, 'utf8').trim();
+  if (!question || question.length > MAX_QUESTION) {
+    console.error(`请输入 1 到 ${MAX_QUESTION} 个字符的问题。`);
+    process.exitCode = 1;
+  } else {
+    await open('', question);
+  }
+}
 else await open(cmd);
 
 // ---------- 命令 ----------
@@ -56,7 +69,7 @@ async function status() {
   }
 }
 
-async function open(slug) {
+async function open(slug, question) {
   if (slug && (!SLUG.test(slug) || !fs.existsSync(path.join(ROOT, slug, 'topic.json')))) {
     console.error(`没有这个学习项目：${path.join(ROOT, slug)}`);
     process.exit(1);
@@ -83,9 +96,31 @@ async function open(slug) {
       process.exit(1);
     }
   }
-  const url = BASE + '/' + (slug ? slug + '/' : '');
-  execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], () => {});
-  console.log(`Vibe Learning：${url}`);
+  const url = new URL(slug ? '/' + slug + '/' : '/', BASE);
+  if (question) {
+    try {
+      const res = await fetch(BASE + '/api/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: BASE },
+        body: JSON.stringify({ q: question }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const project = await res.json();
+      if (typeof project.slug !== 'string' || !SLUG.test(project.slug)) throw new Error('服务没有返回有效的项目名');
+      url.pathname = '/' + project.slug + '/';
+      url.hash = new URLSearchParams({ ask: question }).toString();
+    } catch (err) {
+      console.error(`没拿到项目地址（${err.message}）。请到首页 ${BASE}/ 查看项目列表。`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+  execFile(process.platform === 'darwin' ? 'open' : 'xdg-open', [url.href], (err) => {
+    if (err) {
+      console.error(`浏览器没能自动打开。请打开这个地址：${url.href}`);
+      process.exitCode = 1;
+    } else console.log(`Vibe Learning：${url.href}`);
+  });
 }
 
 async function stop(quiet) {
@@ -232,7 +267,7 @@ async function newTopic(req, res) {
   const body = await readBody(req, res);
   if (body === undefined) return;
   const q = String(body?.q ?? '').trim();
-  if (!q || q.length > 4000) return json(res, 400, { error: 'q' });
+  if (!q || q.length > MAX_QUESTION) return json(res, 400, { error: 'q' });
   let slug;
   do slug = Date.now().toString(36) + Math.random().toString(36).slice(2, 5); while (fs.existsSync(path.join(ROOT, slug)));
   const dir = path.join(ROOT, slug);
@@ -461,40 +496,36 @@ async function ask(req, res, dir) {
   res.end(JSON.stringify(r.error ? { error: r.error, message: r.message, text: r.text } : { done: true, text: r.text, model: r.model }) + '\n');
 }
 
-// ---------- 本机的 AI ----------
-// tools：learn（回答问题：能读、能搜、能上网查，只能往 files/ 里写）、research（开题：能读、能上网查，不写）、none。
-// 读：默认只读得到这个项目的文件夹（工作目录）和 sources 里写的路径（--add-dir）；settings.json 里 readAnywhere 为 true 时整台电脑都能读
+// ---------- 本机的 AI：Codex ----------
+// 每次提问（开题也一样）起一个 `codex app-server`，用 JSON-RPC 走标准输入输出：
+//   initialize → config/read、skills/list（找出要关掉的 MCP 和技能）→ thread/start（临时会话，不存记录）→ turn/start
+// 它边写边发 item/agentMessage/delta，转给页面；turn/completed 以后关掉进程。
+// 不用 `codex exec --json`：它只在一段话写完后才交出来，页面就没法边收边画。
+// tools：learn（回答问题：能读、能上网查，可写 files/ 和临时目录）、research（开题：能读、能上网查，不写）、none（不用工具）。
 // 返回 { done: Promise<{ text, model } 或 { error, message, text }>, kill }
-const SYSTEM = '你在学习者自己电脑上的学习页面里当导师。回答格式、规则和材料都在用户消息里，严格照着做。';
-// 只有一档：Opus，思考力度 high。xhigh 一个回答常要一到四分钟；medium 和 low 快不了多少，还常把 JSON 写坏，页面就丢字丢图
-const CLAUDE_MODEL = 'opus';
-const CLAUDE_EFFORT = 'high';
-// 每种是 [能用的工具, 不用问就允许的]；没列进第二项的，--permission-mode dontAsk 下一律拒绝。
-// 工作目录和 --add-dir 的目录里本来就能读、能搜，不用列；写文件归 Edit(…) 管（也管 Write）
-const CLAUDE_TOOLS = {
-  learn: ['Read,Grep,Glob,WebSearch,WebFetch,Write,Edit', 'WebSearch,WebFetch,Edit(./files/**)'],
-  research: ['Read,Grep,Glob,WebSearch,WebFetch', 'WebSearch,WebFetch'],
-};
-const READ_ANYWHERE = 'Read,Grep,Glob';
-const NARROW = '\n\n这台电脑上，你只读得到这个学习项目的文件夹，和材料里列出的资料路径，别处的文件读不到。学习者想让你读他电脑上别的文件，可以在 Claude Code 里说「让 Vibe Learning 能读我电脑上的文件」。';
-// 数据目录下的 settings.json：{ "readAnywhere": true } 让页面上的 AI 能读整台电脑的文件
+const CODEX = process.env.VIBE_LEARNING_CODEX || 'codex';
+// 换掉 Codex 默认的「写代码的助手」那一大段说明：页面上的它是导师，只按用户消息里的回答格式输出
+const SYSTEM = [
+  '你在学习者自己电脑上的学习页面里当导师。回答格式、规则和材料都在用户消息里，严格照着做。',
+  '你最后的回复会原样交给页面去画：只写回答格式要的内容，不加开场白和结束语，不用 Markdown 代码块包起来。',
+  '要读文件、搜文件，用只读的命令（rg、sed -n、cat、ls、find 这类）；运行命令只为读资料，不装东西、不改设置、不打开浏览器或别的程序。命令行连不上网，查网上的资料用网页搜索工具。',
+  '不用技能（skills），也不向学习者提问、不申请权限：他在网页上，看不到这些。',
+].join('\n');
+// 思考力度：默认 high。数据目录的 settings.json 里可以用 model、effort 换（比如 {"model":"<模型名>","effort":"medium"}）
+const DEFAULT_EFFORT = 'high';
+const EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+// 页面上的导师用不着的功能，一律关掉：它们会多出工具（连别的应用、开浏览器、控制电脑、开子任务……），
+// 被网页里藏着的话骗了也能少做坏事。不认识的名字 Codex 会跳过，所以旧版本、新版本都能这么写。
+// unbounded_connection_retries：连不上网时别一直等，重试几次就报错，页面好说「连不上」
+const OFF_FEATURES = ['apps', 'plugins', 'remote_plugin', 'browser_use', 'browser_use_external', 'computer_use', 'in_app_browser', 'image_generation', 'view_image', 'goals', 'multi_agent', 'multi_agent_v2', 'memories', 'hooks', 'tool_suggest', 'sleep_tool', 'skill_mcp_dependency_install', 'unbounded_connection_retries'];
+const NARROW = (cwd) => '\n\n这台电脑上，你只读这个学习项目的文件夹（' + cwd + '）和材料里列出的资料路径，别处的文件不要读。学习者想让你读他电脑上别的文件，可以在 Codex 里说「让 Vibe Learning 能读我电脑上的文件」。';
+// 数据目录下的 settings.json：{ "readAnywhere": true } 不再要求页面上的 AI 只读项目文件夹；model、effort 换模型和思考力度
 function settings() {
   const s = readJson(path.join(ROOT, 'settings.json'));
   return s && typeof s === 'object' ? s : {};
 }
-// topic.json 的 sources 里写的、确实存在的文件夹（是文件就用它所在的文件夹）
-function sourceDirs(cwd) {
-  const topic = readJson(path.join(cwd, 'topic.json'));
-  const out = new Set();
-  for (const s of Array.isArray(topic?.sources) ? topic.sources : []) {
-    const p = typeof s?.path === 'string' ? s.path.replace(/^~(?=\/|$)/, os.homedir()) : '';
-    if (!p || !path.isAbsolute(p)) continue;
-    try { out.add(fs.statSync(p).isDirectory() ? p : path.dirname(p)); } catch { /* 不在了 */ }
-  }
-  return [...out].slice(0, 8);
-}
-// 从 Claude Code 里启动时会带上这些，传给子进程会让它以为自己是嵌套会话
-const SESSION_ENV = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_EXECPATH', 'CLAUDE_PID', 'CLAUDE_EFFORT'];
+// 从 Codex 的会话里启动服务时会带上这些；传给子进程，它会以为自己在沙箱里、在别人的会话里
+const SESSION_ENV = /^CODEX_(SANDBOX|THREAD_ID|TURN_ID|SESSION|INTERNAL|CI$|MANAGED_BY)/;
 
 // 每个项目正在跑的 AI（开题、回答），删项目时先停掉
 const RUNS = new Map();
@@ -506,66 +537,188 @@ function runAgent(opts) {
   return run;
 }
 function startAgent({ prompt, cwd, tools, onDelta = () => {}, onStatus = () => {} }) {
+  const mode = tools === 'learn' || tools === 'research' ? tools : 'none';
   const env = { ...process.env };
-  for (const k of SESSION_ENV) delete env[k];
-  const t = CLAUDE_TOOLS[tools];
-  const wide = t && settings().readAnywhere === true;
-  const access = !t ? [] : ['--allowedTools', wide ? READ_ANYWHERE + ',' + t[1] : t[1], ...sourceDirs(cwd).flatMap((d) => ['--add-dir', d]), '--permission-mode', 'dontAsk'];
-  const child = spawn('claude', [
-    '-p', '--safe-mode', '--tools', t ? t[0] : '', ...access,
-    '--strict-mcp-config', '--no-session-persistence',
-    '--model', CLAUDE_MODEL, '--effort', CLAUDE_EFFORT, '--system-prompt', SYSTEM + (t && !wide ? NARROW : ''),
-    '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
-  ], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
-  let text = '';
+  for (const k of Object.keys(env)) if (SESSION_ENV.test(k)) delete env[k];
+  const set = settings();
+  const wide = set.readAnywhere === true;
+  // 回答问题时把 files/ 设为工作目录，沙箱允许写入工作目录和系统临时目录。
+  const files = path.join(cwd, 'files');
+  if (mode === 'learn') fs.mkdirSync(files, { recursive: true });
+  const workdir = mode === 'learn' ? files : cwd;
+  const where = mode === 'learn'
+    ? '\n\n你的工作目录是这个学习项目的 files/ 文件夹（' + files + '），材料里说的 files/ 就是它：要存的资料存在这里，写的时候路径不要再加 files/。项目文件夹是它的上一级（' + cwd + '），topic.json、data/ 在那里，只读。'
+    : mode === 'research'
+      ? '\n\n你的工作目录是这个学习项目的文件夹（' + cwd + '）。这一次只读、只查，不写任何文件。'
+      : '\n\n这一次不用工具，直接回答。';
+  const model = typeof set.model === 'string' && set.model.trim() ? set.model.trim() : null;
+  const effort = EFFORTS.includes(set.effort) ? set.effort : DEFAULT_EFFORT;
+
+  const child = spawn(CODEX, ['app-server'], { cwd: workdir, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  let text = ''; // 正在写的这段话
+  let final = ''; // 写完了的最后一段话
+  let msgId = null;
+  let usedModel = model || 'codex';
+  let lastError = null;
   let stderr = '';
   let settle;
   const done = new Promise((r) => { settle = r; });
   let over = false;
-  const finish = (o) => { if (!over) { over = true; settle(o); } };
+  const finish = (o) => {
+    if (over) return;
+    over = true;
+    settle(o);
+    try { child.stdin.end(); } catch { /* 已经关了 */ }
+    child.kill('SIGTERM');
+  };
+
+  // JSON-RPC：一行一条
+  let nextId = 0;
+  const waiting = new Map();
+  const send = (o) => { if (!child.stdin.destroyed) child.stdin.write(JSON.stringify(o) + '\n'); };
+  const call = (method, params) => new Promise((resolve, reject) => {
+    const id = ++nextId;
+    waiting.set(id, { resolve, reject });
+    send({ id, method, params });
+  });
   child.on('error', (e) => finish({ error: e.code === 'ENOENT' ? 'no_cli' : 'upstream_error', message: e.message, text }));
   child.stdin.on('error', () => {});
-  child.stdin.end(prompt);
   child.stderr.on('data', (b) => { stderr = (stderr + b).slice(-4000); });
+  // 它去读文件、查资料了：之前说的话作废（多半是「我先查一下」这类开场白），回答以查完之后的为准
+  const tool = (s) => { text = ''; if (!over) onStatus(s); };
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
-    let o;
-    try { o = JSON.parse(line); } catch { return; }
-    if (o.type === 'stream_event' && o.event?.type === 'content_block_delta' && o.event.delta?.type === 'text_delta') {
-      text += o.event.delta.text;
-      if (!over) onDelta(o.event.delta.text);
-    } else if (o.type === 'assistant' && Array.isArray(o.message?.content)) {
-      for (const c of o.message.content) {
-        if (c?.type !== 'tool_use') continue;
-        text = '';
-        if (!over) onStatus(toolStatus(c.name, c.input));
+    let m;
+    try { m = JSON.parse(line); } catch { return; }
+    if (m.id != null && !m.method) {
+      const w = waiting.get(m.id);
+      if (!w) return;
+      waiting.delete(m.id);
+      if (m.error) w.reject(Object.assign(new Error(String(m.error.message ?? 'rpc')), { rpc: m.error }));
+      else w.resolve(m.result);
+      return;
+    }
+    // 它想问学习者、要权限：页面上没人回答，一律拒绝
+    if (m.id != null && m.method) return send({ id: m.id, error: { code: -32000, message: '学习页面上没人能回答这个请求' } });
+    const p = m.params ?? {};
+    switch (m.method) {
+      case 'item/agentMessage/delta':
+        if (typeof p.delta !== 'string' || !p.delta) return;
+        if (msgId !== p.itemId) {
+          // 新的一段话：上一段没交出去的作废
+          if (text) { text = ''; if (!over) onStatus(''); }
+          msgId = p.itemId;
+        }
+        text += p.delta;
+        if (!over) onDelta(p.delta);
+        return;
+      case 'item/started': {
+        const it = p.item ?? {};
+        if (it.type === 'agentMessage') {
+          if (msgId !== it.id && text) { text = ''; if (!over) onStatus(''); }
+          msgId = it.id;
+        } else if (it.type === 'commandExecution') tool(commandStatus(it));
+        else if (it.type === 'webSearch') tool(searchStatus(it));
+        else if (it.type === 'fileChange') tool('在存 ' + baseName(it.changes?.[0]?.path));
+        else if (it.type === 'mcpToolCall' || it.type === 'dynamicToolCall') tool('在查资料');
+        return;
       }
-    } else if (o.type === 'result') {
-      if (o.is_error || o.subtype !== 'success') finish({ error: errorCode(o.result ?? o.subtype), message: String(o.result ?? o.subtype ?? '').slice(0, 400), text });
-      else finish({ text: typeof o.result === 'string' && o.result ? o.result : text, model: CLAUDE_MODEL });
+      case 'item/completed': {
+        const it = p.item ?? {};
+        if (it.type === 'agentMessage' && typeof it.text === 'string') final = it.text;
+        // 搜什么，往往搜完才知道
+        else if (it.type === 'webSearch' && (it.query || it.action)) tool(searchStatus(it));
+        return;
+      }
+      case 'error':
+        if (p.willRetry) { if (!over) onStatus('连接断了，在重试'); text = ''; }
+        else lastError = p.error ?? lastError;
+        return;
+      case 'turn/completed': {
+        const turn = p.turn ?? {};
+        const msgs = Array.isArray(turn.items) ? turn.items.filter((x) => x?.type === 'agentMessage' && typeof x.text === 'string') : [];
+        const out = (msgs.length ? msgs[msgs.length - 1].text : '') || final || text;
+        if (turn.status === 'completed') return finish({ text: out, model: usedModel });
+        if (turn.status === 'interrupted') return finish({ error: 'cancelled', text: out });
+        const err = turn.error ?? lastError;
+        return finish({ error: codexError(err), message: errMessage(err), text: out });
+      }
     }
   });
   child.on('close', () => {
     if (over) return;
-    if (stderr.trim()) console.error(new Date().toISOString(), 'claude -p：', stderr.trim().slice(-800));
-    finish(text ? { text, model: CLAUDE_MODEL } : { error: errorCode(stderr), message: stderr.trim().slice(-400), text });
+    if (stderr.trim()) console.error(new Date().toISOString(), 'codex app-server：', stderr.trim().slice(-800));
+    const err = lastError;
+    finish(err ? { error: codexError(err), message: errMessage(err), text } : final || text ? { text: final || text, model: usedModel } : { error: errorCode(stderr), message: stderr.trim().slice(-400), text });
   });
-  return { done, kill: () => { if (!over) { finish({ error: 'cancelled', text }); child.kill('SIGTERM'); } } };
+
+  (async () => {
+    await call('initialize', { clientInfo: { name: 'vibe_learning', title: 'Vibe Learning', version: VERSION }, capabilities: null });
+    send({ method: 'initialized' });
+    // 学习者自己配的 MCP 服务和技能，在页面上的导师这里都关掉（只这一次，不改他的设置）
+    const conf = await call('config/read', { cwd: workdir }).catch(() => null);
+    const mcp = conf?.config?.mcp_servers && typeof conf.config.mcp_servers === 'object' ? Object.keys(conf.config.mcp_servers) : [];
+    const sk = await call('skills/list', { cwds: [workdir] }).catch(() => null);
+    const skills = new Set(['vibe-learning']);
+    for (const e of Array.isArray(sk?.data) ? sk.data : []) for (const s of Array.isArray(e?.skills) ? e.skills : []) if (typeof s?.name === 'string') skills.add(s.name);
+    const features = Object.fromEntries(OFF_FEATURES.map((f) => [f, false]));
+    if (mode === 'none') Object.assign(features, { shell_tool: false, unified_exec: false });
+    const config = {
+      features,
+      web_search: mode === 'none' ? 'disabled' : 'live',
+      mcp_servers: Object.fromEntries(mcp.map((n) => [n, { enabled: false }])),
+      skills: { config: [...skills].map((name) => ({ name, enabled: false })) },
+    };
+    const th = await call('thread/start', {
+      cwd: workdir,
+      ...(model ? { model } : {}),
+      approvalPolicy: 'never',
+      sandbox: mode === 'learn' ? 'workspace-write' : 'read-only',
+      ephemeral: true,
+      baseInstructions: SYSTEM + where + (mode !== 'none' && !wide ? NARROW(cwd) : ''),
+      config,
+    });
+    if (typeof th?.model === 'string' && th.model) usedModel = th.model;
+    if (over) return;
+    await call('turn/start', {
+      threadId: th.thread.id,
+      input: [{ type: 'text', text: prompt, text_elements: [] }],
+      effort,
+      // 写进 turn 里，学习者自己 config.toml 里的沙箱设置（比如给命令开网）在这里不算数
+      sandboxPolicy: mode === 'learn'
+        ? { type: 'workspaceWrite', writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false }
+        : { type: 'readOnly', networkAccess: false },
+    });
+  })().catch((e) => {
+    if (over) return;
+    const msg = String(e?.rpc?.message ?? e?.message ?? e);
+    console.error(new Date().toISOString(), 'codex app-server 没能开始：', msg, stderr.trim().slice(-400));
+    finish({ error: /model/i.test(msg) && /not (found|supported)|unknown|does not exist/i.test(msg) ? 'bad_model' : errorCode(msg + ' ' + stderr), message: msg.slice(0, 400), text });
+  });
+
+  return { done, kill: () => { if (!over) finish({ error: 'cancelled', text }); } };
 }
 
-function toolStatus(name, input) {
-  const i = input ?? {};
-  const base = (f) => String(f ?? '').split('/').filter(Boolean).pop() ?? '';
-  const cut = (v) => { const t = String(v ?? ''); return t.length > 40 ? t.slice(0, 40) + '…' : t; };
-  if (name === 'Read') return '在读 ' + base(i.file_path);
-  if (name === 'Grep') return '在搜「' + cut(i.pattern) + '」';
-  if (name === 'Glob') return '在找文件 ' + cut(i.pattern);
-  if (name === 'WebSearch') return '在网上搜「' + cut(i.query) + '」';
-  if (name === 'WebFetch') { try { return '在看网页 ' + new URL(i.url).host; } catch { return '在看网页'; } }
-  if (name === 'Write' || name === 'Edit') return '在存 ' + base(i.file_path);
+const baseName = (f) => String(f ?? '').split(/[\\/]/).filter(Boolean).pop() ?? '';
+const cut = (v) => { const t = String(v ?? ''); return t.length > 40 ? t.slice(0, 40) + '…' : t; };
+// 它运行的命令：Codex 已经认出是读文件、列目录还是搜索
+function commandStatus(it) {
+  const a = Array.isArray(it.commandActions) ? it.commandActions[0] : null;
+  if (a?.type === 'read') return '在读 ' + (a.name || baseName(a.path));
+  if (a?.type === 'search') return a.query ? '在搜「' + cut(a.query) + '」' : '在搜文件';
+  if (a?.type === 'listFiles') return '在找文件';
+  // 往文件里写（cat > 速查.md <<EOF、tee 速查.md）
+  const w = /(?:^|[\s;&|])(?:>>?|tee(?:\s+-a)?)\s*['"]?([^\s'"<>|;&]+)/.exec(String(it.command ?? ''));
+  if (w && !/^\/dev\//.test(w[1])) return '在存 ' + baseName(w[1]);
   return '在查资料';
 }
+function searchStatus(it) {
+  const a = it.action ?? {};
+  if (a.type === 'open_page' || a.type === 'find_in_page') { try { return '在看网页 ' + new URL(a.url).host; } catch { return '在看网页'; } }
+  const q = it.query || a.query || (Array.isArray(a.queries) ? a.queries[0] : '');
+  return q ? '在网上搜「' + cut(q) + '」' : '在网上查资料';
+}
 
-// 页面发来的是多轮对话；命令行只收一段文字，拼起来
+// 页面发来的是多轮对话；Codex 这里只收一段文字，拼起来
 function flatten(turns) {
   if (turns.length === 1) return turns[0].content;
   const [first, ...rest] = turns;
@@ -574,13 +727,28 @@ function flatten(turns) {
   return first.content + (history ? '\n\n【之前的对话】\n' + history : '') + '\n\n【学习者现在说】\n' + last.content;
 }
 
+// Codex 报的错（codexErrorInfo）换成页面认识的几种
+function codexError(err) {
+  if (!err) return 'upstream_error';
+  const info = err.codexErrorInfo;
+  const key = typeof info === 'string' ? info : info && typeof info === 'object' ? Object.keys(info)[0] : '';
+  const status = info && typeof info === 'object' ? info[key]?.httpStatusCode : null;
+  if (key === 'unauthorized' || status === 401 || status === 403) return 'session_expired';
+  if (['usageLimitExceeded', 'rateLimitExceeded', 'serverOverloaded', 'sessionBudgetExceeded'].includes(key) || status === 429) return 'rate_limited';
+  if (key === 'contextWindowExceeded') return 'prompt_too_large';
+  if (key === 'modelNotFound') return 'bad_model';
+  if (['httpConnectionFailed', 'responseStreamConnectionFailed', 'responseStreamDisconnected', 'responseTooManyFailedAttempts'].includes(key)) return status >= 500 ? 'upstream_error' : 'network';
+  return errorCode([err.message, err.additionalDetails].filter(Boolean).join(' '));
+}
+const errMessage = (err) => String([err?.message, err?.additionalDetails].filter(Boolean).join('：') || '').slice(0, 400);
+
 function errorCode(msg) {
   const s = String(msg ?? '');
-  if (/not logged in|log ?in|\/login|auth|credential|api key|401/i.test(s)) return 'session_expired';
-  // 连不上 Anthropic：多半是网络或代理
-  if (/ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|Unable to connect|fetch failed|network|socket hang up|timed? ?out/i.test(s)) return 'network';
+  if (/not logged in|log ?in|unauthori[sz]ed|auth|credential|api key|401/i.test(s)) return 'session_expired';
+  // 连不上 OpenAI：多半是网络或代理
+  if (/ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|Unable to connect|fetch failed|network|socket hang up|timed? ?out|stream disconnected|error sending request|proxy/i.test(s)) return 'network';
   if (/rate.?limit|usage limit|limit reached|overloaded|429|529/i.test(s)) return 'rate_limited';
-  if (/prompt is too long|too long|context length/i.test(s)) return 'prompt_too_large';
+  if (/prompt is too long|too long|context (length|window)/i.test(s)) return 'prompt_too_large';
   return 'upstream_error';
 }
 
